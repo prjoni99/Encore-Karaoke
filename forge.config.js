@@ -20,14 +20,27 @@ const signing = process.env.APPLE_SIGNING_IDENTITY
         }),
       },
       // Notarization is separately gated: signing alone is useful locally,
-      // notarizing requires credentials and a network round-trip.
-      ...(process.env.APPLE_ID && {
-        osxNotarize: {
-          appleId: process.env.APPLE_ID,
-          appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
-          teamId: process.env.APPLE_TEAM_ID,
-        },
-      }),
+      // notarizing requires credentials and a network round-trip to Apple.
+      //
+      // Preferred: a notarytool keychain profile, created once with
+      //   xcrun notarytool store-credentials "encore-notary" \
+      //     --apple-id <id> --team-id 53MUTM55LC --password <app-specific-pw>
+      // so the app-specific password lives in the keychain and never appears
+      // in a shell env, a CI log, or this file. CI (which has no keychain
+      // profile) falls back to the explicit credential triple.
+      ...(process.env.APPLE_KEYCHAIN_PROFILE
+        ? {
+            osxNotarize: {
+              keychainProfile: process.env.APPLE_KEYCHAIN_PROFILE,
+            },
+          }
+        : process.env.APPLE_ID && {
+            osxNotarize: {
+              appleId: process.env.APPLE_ID,
+              appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
+              teamId: process.env.APPLE_TEAM_ID,
+            },
+          }),
     }
   : {};
 
@@ -108,36 +121,25 @@ module.exports = {
 
       return true;
     },
-    executableName: "encore-karaoke",
+    // Windows/Linux want a lowercase binary name. macOS must NOT set this:
+    // packager derives CFBundleDisplayName from executableName, so setting it
+    // makes the microphone prompt read "encore-karaoke would like to access
+    // the microphone". Omitting it on darwin makes packager use the app name
+    // for CFBundleExecutable, CFBundleDisplayName and Contents/MacOS/ alike.
+    //
+    // This cannot be repaired in a postPackage hook: @electron/packager signs
+    // AND notarizes inside its own pipeline, so Forge's postPackage runs after
+    // both, and editing Info.plist there invalidates the signature
+    // ("invalid Info.plist (plist or signature have been modified)").
+    //
+    // process.platform is the build host, which is correct here -- macOS
+    // bundles can only be signed on macOS, and Windows/Linux artifacts are
+    // built on their own runners.
+    ...(process.platform === "darwin"
+      ? {}
+      : { executableName: "encore-karaoke" }),
   },
-  hooks: {
-    // packager derives CFBundleDisplayName from executableName, and it applies
-    // extendInfo BEFORE that write -- so extendInfo cannot fix it. Without
-    // this the macOS microphone prompt reads "encore-karaoke would like to
-    // access the microphone". postPackage runs before signing, which is
-    // required: mutating the bundle after signing invalidates the signature.
-    postPackage: async (_forgeConfig, options) => {
-      if (options.platform !== "darwin") return;
-      // plist@5 is ESM-only (no "require" condition in its exports map), so a
-      // bare require() from this CJS config throws. The hook is async, so a
-      // dynamic import is the clean way in.
-      const plist = await import("plist");
-      for (const out of options.outputPaths) {
-        const infoPath = path.join(
-          out,
-          `${APP_NAME}.app`,
-          "Contents",
-          "Info.plist",
-        );
-        if (!fs.existsSync(infoPath)) continue;
-        const info = plist.parse(fs.readFileSync(infoPath, "utf8"));
-        info.CFBundleDisplayName = APP_NAME;
-        fs.writeFileSync(infoPath, plist.build(info));
-      }
-      // Do NOT rename Contents/MacOS/encore-karaoke -- CFBundleExecutable
-      // must keep matching the binary on disk.
-    },
-  },
+  hooks: {},
   rebuildConfig: {},
   makers: [
     {

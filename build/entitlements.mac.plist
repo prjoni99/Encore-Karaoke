@@ -2,32 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <!-- Vocal capture for scoring and recording. -->
-  <key>com.apple.security.device.audio-input</key><true/>
-
-  <!-- Chromium/V8 require JIT and writable-executable memory under the
-       hardened runtime. -->
-  <key>com.apple.security.cs.allow-jit</key><true/>
-  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
-  <key>com.apple.security.cs.allow-dyld-environment-variables</key><true/>
-
-  <!--
-    Deliberately omitted:
-
-    com.apple.security.cs.disable-library-validation
-      Governs loading unsigned dylibs, not spawn(). No shipped dependency has
-      a binding.gyp; loudness shells out to osascript, and pdfkit,
-      systeminformation and kuroshiro are pure JS. Add it back only if a
-      native .node is introduced into the app bundle. (maker-dmg pulls in
-      fs-xattr/macos-alias, but those are build-time devDependencies and never
-      load in the app process.)
-
-    com.apple.security.network.server / .client
-      App Sandbox keys. This app is not sandboxed, so they do nothing here.
-
-    com.apple.security.device.camera
-      The Electron process never opens a camera -- the paired phone captures
-      and streams over PeerJS. Add if the desktop ever captures directly.
-  -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
 </dict>
 </plist>
