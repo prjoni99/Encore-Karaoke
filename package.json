@@ -3,6 +3,10 @@
   "version": "1.10.0",
   "description": "Turn your PC into a karaoke machine, complete with scoring and recording features. For karaoke fans, by karaoke fans. Runs offline.",
   "main": "dist/main.js",
+  "engines": {
+    "_comment": "Node 26 breaks extract-zip@2/yauzl@2: unpacking the Electron zip stops after one entry and the promise never settles, so electron-forge exits 0 having produced nothing. Packaging silently succeeds while emitting no artifact.",
+    "node": ">=22 <26"
+  },
   "scripts": {
     "build": "node build.js",
     "build:dev": "node build.js --dev",
@@ -36,6 +40,7 @@
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",
+    "@electron-forge/maker-dmg": "^7.11.2",
     "@electron-forge/maker-rpm": "^7.11.2",
     "@electron-forge/maker-squirrel": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
@@ -57,10 +62,11 @@
     "ionicons": "^8.0.13",
     "kuroshiro": "^1.2.0",
     "localforage": "^1.10.0",
-    "mime-types": "^2.1.35",
     "marked": "^18.0.5",
+    "mime-types": "^2.1.35",
     "peerjs": "^1.5.5",
     "pitchy": "^4.1.0",
+    "plist": "^5.0.0",
     "qrcode": "^1.5.3",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
