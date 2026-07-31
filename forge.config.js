@@ -139,7 +139,67 @@ module.exports = {
       ? {}
       : { executableName: "encore-karaoke" }),
   },
-  hooks: {},
+  hooks: {
+    // osxNotarize notarizes the .app inside @electron/packager, which runs
+    // before the makers -- so the .dmg that users actually download carries no
+    // ticket of its own ("rejected, source=no usable signature"). The stapled
+    // app inside still validates on launch, but Apple's guidance is to
+    // notarize the distributed container, and an unticketed disk image can
+    // trip "can't be opened because Apple cannot check it" on mount.
+    //
+    // Unlike editing Info.plist post-signing, this is safe: stapling is
+    // designed to append a ticket to a finished artifact.
+    postMake: async (_forgeConfig, makeResults) => {
+      const profile = process.env.APPLE_KEYCHAIN_PROFILE;
+      if (process.platform !== "darwin" || !profile) return makeResults;
+
+      const { promisify } = require("node:util");
+      const execFile = promisify(require("node:child_process").execFile);
+
+      const dmgs = makeResults
+        .flatMap((r) => r.artifacts)
+        .filter((a) => a.endsWith(".dmg"));
+
+      const identity = process.env.APPLE_SIGNING_IDENTITY;
+
+      for (const dmg of dmgs) {
+        const name = path.basename(dmg);
+
+        // Order matters and is not interchangeable: the disk image must be
+        // SIGNED first, then notarized, then stapled. Notarizing an unsigned
+        // .dmg does yield a ticket that `stapler validate` accepts, but spctl
+        // still reports "rejected, source=no usable signature" -- the ticket
+        // is meaningless without a signature to bind it to. And signing after
+        // notarizing rewrites the file, invalidating the ticket: re-stapling
+        // then fails with Error 65 because the notary has no record of the
+        // new hash.
+        if (identity) {
+          console.log(`\n[dmg] signing ${name}`);
+          await execFile("codesign", [
+            "--sign",
+            identity,
+            "--timestamp",
+            "--force",
+            dmg,
+          ]);
+        }
+
+        console.log(`[dmg] notarizing ${name} (this takes a few minutes)`);
+        await execFile("xcrun", [
+          "notarytool",
+          "submit",
+          dmg,
+          "--keychain-profile",
+          profile,
+          "--wait",
+        ]);
+
+        await execFile("xcrun", ["stapler", "staple", dmg]);
+        console.log(`[dmg] signed, notarized and stapled ${name}`);
+      }
+      return makeResults;
+    },
+  },
   rebuildConfig: {},
   makers: [
     {
